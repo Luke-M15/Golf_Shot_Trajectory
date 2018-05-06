@@ -47,15 +47,16 @@ def initial_launch(club,loft,length,mClub,vSwing,mBall,include_miss = False):
         
     vBall = vClub*((1+e)/(1+mBall/mClub))*np.cos(np.deg2rad(loft))*(1-.14*miss)  #mph
     vBall *= .44704     # convert ball speed to m/s, club speed in mph for spin equation
-    angle = loft*(.96-.0071*loft)  #degrees
+    alpha = loft*(.96-.0071*loft)  #degrees
     omega = 160*vClub*np.sin(np.deg2rad(loft))    #rpm
-    omega *= 9.549297   # cnvert rpm to rad/sec
+    omega *= .1047   # convert rpm to rad/sec
     
-    return vBall, angle, omega
+    return vBall, alpha, omega
 
 def calc_flight(v,alpha,omega,r,rho,dt,cd,m,g,spin_decay,maxIter = 1000):
      
     cols = ['t','x','y','Vx','Vy','Ax','Ay','alpha','omega']
+    m /= 1000       # convert the ball mass from g to kg
     s_decay = 1-spin_decay*dt
     t = 0
     x = 0
@@ -63,13 +64,16 @@ def calc_flight(v,alpha,omega,r,rho,dt,cd,m,g,spin_decay,maxIter = 1000):
     vx = v*np.cos(np.deg2rad(alpha))
     vy = v*np.sin(np.deg2rad(alpha))
     i = 0
-    timeStep_list = []
+    position_list = []
     while y > -.00001:    
 
-        ax = (.5*np.pi*rho*r**2*vx*(r*omega-vx*cd))/m
+        if vy > 0:
+            ax = (.5*np.pi*rho*r**2*vx*(-1*r*omega-vx*cd))/m
+        else:
+            ax = (.5*np.pi*rho*r**2*vx*(1*r*omega-vx*cd))/m
         ay = (.5*np.pi*rho*r**2*vy*(r*omega-vy*cd)-m*g)/m
     
-        timeStep_list.append([t,x,y,vx,vy,ax,ay,alpha,omega])
+        position_list.append([t,x,y,vx,vy,ax,ay,alpha,omega])
     
         t = t+dt
         x = x + vx*dt
@@ -84,7 +88,7 @@ def calc_flight(v,alpha,omega,r,rho,dt,cd,m,g,spin_decay,maxIter = 1000):
             break
      
     
-    df = pd.DataFrame(timeStep_list,columns = cols)
+    df = pd.DataFrame(position_list,columns = cols)
     df.set_index('t',inplace=True)
     
     return df
@@ -98,7 +102,7 @@ if __name__ == "__main__":
     # constants
     r = 1.68*in2m    # m, radius of golf ball 
     rho = 1.225     # kg/m^3, density of air, standard atmosphere
-    g = 9.81        # g, gravitational acceleration
+    g = 9.81        # m/s^2, gravitational acceleration
     dt = .01        # s, time step 
     cd = .2        # coefficient of drag for golf ball
     spin_decay = .033   # %/sec, the decay rate of the ball spin
@@ -109,6 +113,13 @@ if __name__ == "__main__":
     mBall = 1.62*oz2g   #gram, mass of golf ball
     wBall = 1000*mBall*g       #N, gravitation force on golf ball
     
+    
+    #TODO: randomize the direction of the wind and the speed of the wind
+    
+    #TODO: randomize the length of the hole and display it to the user
+    
+    
+    
     # ask user to select a club
     club, loft, length, mClub = clubSelection(df_clubs)
     
@@ -118,8 +129,28 @@ if __name__ == "__main__":
     #calulate the ball's flight
     df_flight = calc_flight(vBall,alpha,omega,r,rho,dt,cd,mBall,g,spin_decay)
     
-    df_flight.plot(x='x',y='y')
-    df_flight.plot(x='x',y='Vx')
+    fig1, ax1 =plt.subplots()
+    df_flight.plot(x='x',y='y', ax=ax1)
+    ax1.set_xlabel('X position (m)')
+    ax1.set_ylabel('Y position (m)')
+    ax1.set_xbound(lower = 0)
+    ax1.set_ybound(lower = 0)
+    
+    fig2, ax2 = plt.subplots(2,2,sharex='col')
+    df_flight.plot('x','Vx', ax=ax2[0,0])
+    ax2[0,0].set_ylabel('Vx (m/s)')
+    ax2[0,0].grid(True)
+    df_flight.plot('x','Vy', ax=ax2[1,0])
+    ax2[1,0].set_ylabel('Vy (m/s)')   
+    ax2[1,0].set_xlabel('X position (m)')
+    ax2[1,0].grid(True)
+    df_flight.plot('x','Ax',ax=ax2[0,1])
+    ax2[0,1].set_ylabel('Ax (m/s^2)')
+    ax2[0,1].grid(True)
+    df_flight.plot('x','Ay',ax=ax2[1,1])
+    ax2[1,1].set_ylabel('Ay (m/s^2)')
+    ax2[1,1].set_xlabel('X position (m)')
+    ax2[1,1].grid(True)
     
     
     
