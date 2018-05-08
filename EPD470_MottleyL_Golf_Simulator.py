@@ -4,9 +4,17 @@ Luke Mottley
 EPD 470 Final Project - Golf Simulator
 """
 
+import sys
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+
+ # unit conversions
+oz2g = 28.3495
+in2m = .0254
+mph2mps = .44704
+m2yd = 1.09361
+
 
 def clubSelection(df):
     club = input('What club would you like to use? ')
@@ -20,8 +28,9 @@ def clubSelection(df):
     loft = df['Loft (deg)'].loc[club]
     length = df['Length (in)'].loc[club]
     mass = df['Mass (g)'].loc[club]
+    v = df['Average Swing Speed (mph)'].loc[club]
     
-    return club, loft, length, mass
+    return club, loft, length, mass, v
     
     
         
@@ -53,35 +62,38 @@ def initial_launch(club,loft,length,mClub,vSwing,mBall,include_miss = False):
     
     return vBall, alpha, omega
 
-def calc_flight(v,alpha,omega,r,rho,dt,cd,m,g,spin_decay,maxIter = 1000):
+def calc_flight(v,alpha,omega,r,rho,dt,cd,m,g,spin_decay,x=0,maxIter = 10000):
      
-    cols = ['t','x','y','Vx','Vy','Ax','Ay','alpha','omega']
+    cols = ['t','x','y','V','Vx','Vy','Ax','Ay','Ay2','alpha','omega']
     m /= 1000       # convert the ball mass from g to kg
     s_decay = 1-spin_decay*dt
     t = 0
-    x = 0
     y = 0
-    vx = v*np.cos(np.deg2rad(alpha))
-    vy = v*np.sin(np.deg2rad(alpha))
+    vx = v*np.cos(np.deg2rad(abs(alpha)))
+    vy = v*np.sin(np.deg2rad(abs(alpha)))
     i = 0
     position_list = []
     while y > -.00001:    
-
-        if vy > 0:
-            ax = (.5*np.pi*rho*r**2*vx*(-1*r*omega-vx*cd))/m
-        else:
-            ax = (.5*np.pi*rho*r**2*vx*(1*r*omega-vx*cd))/m
-        ay = (.5*np.pi*rho*r**2*vy*(r*omega-vy*cd)-m*g)/m
+             
+        ax = (-.5*np.pi*rho*r**3*v*omega*np.sin(np.deg2rad(alpha))
+              -.5*np.pi*rho*r**2*v**2*cd*np.cos(np.deg2rad(alpha)))/m
+     
+        ay = (.5*np.pi*rho*r**3*v*omega*np.cos(np.deg2rad(alpha))
+              -.5*np.pi*rho*r**2*v**2*cd*np.sin(np.deg2rad(alpha))-m*g)/m
+        
+        ay2 = (.5*np.pi*rho*r**3*v*omega*np.cos(np.deg2rad(abs(alpha)))
+              -.5*np.pi*rho*r**2*v**2*cd*np.sin(np.deg2rad(abs(alpha)))-m*g)/m
     
-        position_list.append([t,x,y,vx,vy,ax,ay,alpha,omega])
+        position_list.append([t,x,y*m2yd,v/mph2mps,vx,vy,ax,ay,ay2,alpha,omega])
     
         t = t+dt
-        x = x + vx*dt
+        x = (x + vx*dt)
         y = y + vy*dt
         omega *= s_decay
         vx = vx + ax*dt
         vy = vy + ay*dt
-        alpha = np.tan((vy/vx))
+        v = np.sqrt(vx**2+vy**2)
+        alpha = np.rad2deg(np.tan((vy/vx)))
         i+=1
         if i > maxIter:
             print('reached iteration limit')
@@ -94,10 +106,6 @@ def calc_flight(v,alpha,omega,r,rho,dt,cd,m,g,spin_decay,maxIter = 1000):
     return df
 
 if __name__ == "__main__":
-    # unit conversions
-    oz2g = 28.3495
-    in2m = .0254
-    mph2mps = .44704
     
     # constants
     r = 1.68*in2m    # m, radius of golf ball 
@@ -106,50 +114,66 @@ if __name__ == "__main__":
     dt = .01        # s, time step 
     cd = .2        # coefficient of drag for golf ball
     spin_decay = .033   # %/sec, the decay rate of the ball spin
+    mBall = 1.62*oz2g   #gram, mass of golf ball
         
     # golf club data file
     df_clubs = pd.read_csv(r'C:\Users\motts\Documents\Grad School\BoxSync\EPD 470\Final Project\Golf_CLub_data.csv', index_col = 'Club')
     vSwing = 80     #mph, swing speed
-    mBall = 1.62*oz2g   #gram, mass of golf ball
-    wBall = 1000*mBall*g       #N, gravitation force on golf ball
+    
     
     
     #TODO: randomize the direction of the wind and the speed of the wind
     
-    #TODO: randomize the length of the hole and display it to the user
+    dis2green = np.random.randint(150,600)
+    holeLength=200
+    print('The hole is {} yards long'.format(holeLength))
+    dis2green = holeLength
+    x=0
+    flight_list = []
+    while dis2green > 0:
+        # ask user to select a club
+        club, loft, length, mClub, vSwing = clubSelection(df_clubs)
     
+        # initial launch conditions, ball speed in m/s, angle in degrees and spin in rad/sec
+        vBall, alpha, omega = initial_launch(club,loft,length,mClub,vSwing,mBall)
     
+        #calulate the ball's flight
+        df_flight = calc_flight(vBall,alpha,omega,r,rho,dt,cd,mBall,g,spin_decay,x)
+        flight_list.append(df_flight)
+        x = df_flight['x'].iloc[-1]
+        dis2green = holeLength - x
+        if dis2green < -20:
+            print('Your shot went over the green and into the pond!!!! \n Try Again.')
+            break    
+        elif (dis2green < 0 and dis2green >= -20):
+            print('You made it on the green!!! Nice Job!!!')
+        else:
+            print('Next shot. \n You are {} yd from the green'.format(dis2green))
+                
     
-    # ask user to select a club
-    club, loft, length, mClub = clubSelection(df_clubs)
+    plt.close('all')
     
-    # initial launch conditions, ball speed in m/s, angle in degrees and spin in rad/sec
-    vBall, alpha, omega = initial_launch(club,loft,length,mClub,vSwing,mBall)
-    
-    #calulate the ball's flight
-    df_flight = calc_flight(vBall,alpha,omega,r,rho,dt,cd,mBall,g,spin_decay)
-    
-    fig1, ax1 =plt.subplots()
+    fig1, ax1 = plt.subplots()
     df_flight.plot(x='x',y='y', ax=ax1)
-    ax1.set_xlabel('X position (m)')
-    ax1.set_ylabel('Y position (m)')
+    ax1.set_xlabel('X position (yd)')
+    ax1.set_ylabel('Y position (yd)')
     ax1.set_xbound(lower = 0)
     ax1.set_ybound(lower = 0)
     
     fig2, ax2 = plt.subplots(2,2,sharex='col')
-    df_flight.plot('x','Vx', ax=ax2[0,0])
+    df_flight.plot(y='Vx', ax=ax2[0,0])
     ax2[0,0].set_ylabel('Vx (m/s)')
     ax2[0,0].grid(True)
-    df_flight.plot('x','Vy', ax=ax2[1,0])
+    df_flight.plot(y='Vy', ax=ax2[1,0])
     ax2[1,0].set_ylabel('Vy (m/s)')   
-    ax2[1,0].set_xlabel('X position (m)')
+    ax2[1,0].set_xlabel('time (sec)')
     ax2[1,0].grid(True)
-    df_flight.plot('x','Ax',ax=ax2[0,1])
+    df_flight.plot(y='Ax',ax=ax2[0,1])
     ax2[0,1].set_ylabel('Ax (m/s^2)')
     ax2[0,1].grid(True)
-    df_flight.plot('x','Ay',ax=ax2[1,1])
+    df_flight.plot(y='Ay',ax=ax2[1,1])
     ax2[1,1].set_ylabel('Ay (m/s^2)')
-    ax2[1,1].set_xlabel('X position (m)')
+    ax2[1,1].set_xlabel('time (sec)')
     ax2[1,1].grid(True)
     
     
