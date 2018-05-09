@@ -62,17 +62,15 @@ def initial_launch(club,loft,length,mClub,vSwing,mBall,include_miss = False):
     
     return vBall, alpha, omega
 
-def calc_flight(v,alpha,omega,r,rho,dt,cd,m,g,spin_decay,x=0,maxIter = 10000):
+def calc_flight(v,alpha,omega,r,rho,dt,cd,m,g,spin_decay,t=0, x=0,maxIter = 10000):
      
-    cols = ['t','x','y','V','Vx','Vy','Ax','Ay','alpha','alpha2','omega']
+    cols = ['t','x','y','V','Vx','Vy','Ax','Ay','alpha','omega']
     m /= 1000       # convert the ball mass from g to kg
     s_decay = 1-spin_decay*dt
-    t = 0
     y = 0
     alpha = np.deg2rad(alpha)
     vx = v*np.cos(alpha)
     vy = v*np.sin(alpha)
-    alpha2 = alpha
     i = 0
     position_list = []
     while y  > -.00001:    
@@ -82,8 +80,14 @@ def calc_flight(v,alpha,omega,r,rho,dt,cd,m,g,spin_decay,x=0,maxIter = 10000):
      
         ay = (.5*np.pi*rho*r**3*v*omega*np.cos(alpha)
               -.5*np.pi*rho*r**2*v**2*cd*np.sin(alpha)-m*g)/m
-    
-        position_list.append([t,x,y,v/mph2mps,vx,vy,ax,ay,np.rad2deg(alpha),np.rad2deg(alpha2),omega])
+        '''
+        ax = (-np.sign(vy)*.5*np.pi*rho*r**3*vy*omega
+              -.5*np.pi*rho*r**2*vx**2*cd)/m
+     
+        ay = (.5*np.pi*rho*r**3*vx*omega
+              -np.sign(vy)*.5*np.pi*rho*r**2*vy**2*cd-m*g)/m
+        '''
+        position_list.append([t,x,y,v/mph2mps,vx,vy,ax,ay,np.rad2deg(alpha),omega])
     
         t = t+dt
         x = x + vx*dt
@@ -92,25 +96,20 @@ def calc_flight(v,alpha,omega,r,rho,dt,cd,m,g,spin_decay,x=0,maxIter = 10000):
         vx = vx + ax*dt
         vy = vy + ay*dt
         v = np.sqrt(vx**2+vy**2)
-        alpha = np.arctan2(y,x)
-        alpha2 = np.arctan(vy/vx)
+        alpha = np.arctan(vy/vx)
         i+=1
         if i > maxIter:
             print('reached iteration limit')
             break
      
-    
     df = pd.DataFrame(position_list,columns = cols)
-    df.set_index('t',inplace=True)
     
     return df
-
-#def plot_hole(df_list,hole_Length):
     
 
 if __name__ == "__main__":    
     # constants
-    r = 1.68*in2m    # m, radius of golf ball 
+    r = 1.68*in2m/2    # m, radius of golf ball 
     rho = 1.225     # kg/m^3, density of air, standard atmosphere
     g = 9.81        # m/s^2, gravitational acceleration
     dt = .01        # s, time step 
@@ -127,12 +126,12 @@ if __name__ == "__main__":
     #TODO: randomize the direction of the wind and the speed of the wind
     
     dis2green = np.random.randint(150,600)
-    holeLength=200
+    holeLength = dis2green
     print('The hole is {} yards long'.format(holeLength))
     dis2green = holeLength
     x=0
+    t=0
     flight_list = []
-    '''
     while dis2green > 0:
         # ask user to select a club
         club, loft, length, mClub, vSwing = clubSelection(df_clubs)
@@ -141,8 +140,9 @@ if __name__ == "__main__":
         vBall, alpha, omega = initial_launch(club,loft,length,mClub,vSwing,mBall)
     
         #calulate the ball's flight
-        df_flight = calc_flight(vBall,alpha,omega,r,rho,dt,cd,mBall,g,spin_decay,x)
-        x = df_flight['x'].iloc[-1]
+        df_flight = calc_flight(vBall,alpha,omega,r,rho,dt,cd,mBall,g,spin_decay,t,x)
+        x = df_flight.x.iloc[-1]
+        t = df_flight.t.iloc[-1]
         dis2green = holeLength - x*m2yd
         df_flight.x *= m2yd
         df_flight.y *= m2yd
@@ -167,27 +167,31 @@ if __name__ == "__main__":
     dis2green = holeLength - x*m2yd
     df_flight.x *= m2yd
     df_flight.y *= m2yd
+    '''
+    df_hole = pd.concat(flight_list)
+    
     plt.close('all')
     
     fig1, ax1 = plt.subplots()
-    df_flight.plot(x='x',y='y', ax=ax1)
+    df_hole.plot(x='x',y='y', ax=ax1)
     ax1.set_xlabel('X position (yd)')
     ax1.set_ylabel('Y position (yd)')
     ax1.set_xbound(lower = 0)
     ax1.set_ybound(lower = 0)
     
+    
     fig2, ax2 = plt.subplots(2,2,sharex='col')
-    df_flight.plot(y='Vx', ax=ax2[0,0])
+    df_flight.plot(x='t',y='Vx', ax=ax2[0,0])
     ax2[0,0].set_ylabel('Vx (m/s)')
     ax2[0,0].grid(True)
-    df_flight.plot(y='Vy', ax=ax2[1,0])
+    df_flight.plot(x='t',y='Vy', ax=ax2[1,0])
     ax2[1,0].set_ylabel('Vy (m/s)')   
     ax2[1,0].set_xlabel('time (sec)')
     ax2[1,0].grid(True)
-    df_flight.plot(y='Ax',ax=ax2[0,1])
+    df_flight.plot(x='t',y='Ax',ax=ax2[0,1])
     ax2[0,1].set_ylabel('Ax (m/s^2)')
     ax2[0,1].grid(True)
-    df_flight.plot(y='Ay',ax=ax2[1,1])
+    df_flight.plot(x='t',y='Ay',ax=ax2[1,1])
     ax2[1,1].set_ylabel('Ay (m/s^2)')
     ax2[1,1].set_xlabel('time (sec)')
     ax2[1,1].grid(True)
