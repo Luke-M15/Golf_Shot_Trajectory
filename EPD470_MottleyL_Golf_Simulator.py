@@ -64,36 +64,36 @@ def initial_launch(club,loft,length,mClub,vSwing,mBall,include_miss = False):
 
 def calc_flight(v,alpha,omega,r,rho,dt,cd,m,g,spin_decay,x=0,maxIter = 10000):
      
-    cols = ['t','x','y','V','Vx','Vy','Ax','Ay','Ay2','alpha','omega']
+    cols = ['t','x','y','V','Vx','Vy','Ax','Ay','alpha','alpha2','omega']
     m /= 1000       # convert the ball mass from g to kg
     s_decay = 1-spin_decay*dt
     t = 0
     y = 0
-    vx = v*np.cos(np.deg2rad(abs(alpha)))
-    vy = v*np.sin(np.deg2rad(abs(alpha)))
+    alpha = np.deg2rad(alpha)
+    vx = v*np.cos(alpha)
+    vy = v*np.sin(alpha)
+    alpha2 = alpha
     i = 0
     position_list = []
-    while y > -.00001:    
+    while y  > -.00001:    
              
-        ax = (-.5*np.pi*rho*r**3*v*omega*np.sin(np.deg2rad(alpha))
-              -.5*np.pi*rho*r**2*v**2*cd*np.cos(np.deg2rad(alpha)))/m
+        ax = (-.5*np.pi*rho*r**3*v*omega*np.sin(alpha)
+              -.5*np.pi*rho*r**2*v**2*cd*np.cos(alpha))/m
      
-        ay = (.5*np.pi*rho*r**3*v*omega*np.cos(np.deg2rad(alpha))
-              -.5*np.pi*rho*r**2*v**2*cd*np.sin(np.deg2rad(alpha))-m*g)/m
-        
-        ay2 = (.5*np.pi*rho*r**3*v*omega*np.cos(np.deg2rad(abs(alpha)))
-              -.5*np.pi*rho*r**2*v**2*cd*np.sin(np.deg2rad(abs(alpha)))-m*g)/m
+        ay = (.5*np.pi*rho*r**3*v*omega*np.cos(alpha)
+              -.5*np.pi*rho*r**2*v**2*cd*np.sin(alpha)-m*g)/m
     
-        position_list.append([t,x,y*m2yd,v/mph2mps,vx,vy,ax,ay,ay2,alpha,omega])
+        position_list.append([t,x,y,v/mph2mps,vx,vy,ax,ay,np.rad2deg(alpha),np.rad2deg(alpha2),omega])
     
         t = t+dt
-        x = (x + vx*dt)
+        x = x + vx*dt
         y = y + vy*dt
         omega *= s_decay
         vx = vx + ax*dt
         vy = vy + ay*dt
         v = np.sqrt(vx**2+vy**2)
-        alpha = np.rad2deg(np.tan((vy/vx)))
+        alpha = np.arctan2(y,x)
+        alpha2 = np.arctan(vy/vx)
         i+=1
         if i > maxIter:
             print('reached iteration limit')
@@ -105,14 +105,16 @@ def calc_flight(v,alpha,omega,r,rho,dt,cd,m,g,spin_decay,x=0,maxIter = 10000):
     
     return df
 
-if __name__ == "__main__":
+#def plot_hole(df_list,hole_Length):
     
+
+if __name__ == "__main__":    
     # constants
     r = 1.68*in2m    # m, radius of golf ball 
     rho = 1.225     # kg/m^3, density of air, standard atmosphere
     g = 9.81        # m/s^2, gravitational acceleration
     dt = .01        # s, time step 
-    cd = .2        # coefficient of drag for golf ball
+    cd = .18        # coefficient of drag for golf ball
     spin_decay = .033   # %/sec, the decay rate of the ball spin
     mBall = 1.62*oz2g   #gram, mass of golf ball
         
@@ -130,6 +132,7 @@ if __name__ == "__main__":
     dis2green = holeLength
     x=0
     flight_list = []
+    '''
     while dis2green > 0:
         # ask user to select a club
         club, loft, length, mClub, vSwing = clubSelection(df_clubs)
@@ -139,18 +142,31 @@ if __name__ == "__main__":
     
         #calulate the ball's flight
         df_flight = calc_flight(vBall,alpha,omega,r,rho,dt,cd,mBall,g,spin_decay,x)
-        flight_list.append(df_flight)
         x = df_flight['x'].iloc[-1]
-        dis2green = holeLength - x
+        dis2green = holeLength - x*m2yd
+        df_flight.x *= m2yd
+        df_flight.y *= m2yd
+        flight_list.append(df_flight)
         if dis2green < -20:
             print('Your shot went over the green and into the pond!!!! \n Try Again.')
             break    
         elif (dis2green < 0 and dis2green >= -20):
             print('You made it on the green!!! Nice Job!!!')
         else:
-            print('Next shot. \n You are {} yd from the green'.format(dis2green))
-                
-    
+            print('Next shot. \n You are {:.4} yd from the green'.format(dis2green))
+    '''            
+    # ask user to select a club
+    club, loft, length, mClub, vSwing = clubSelection(df_clubs)
+
+    # initial launch conditions, ball speed in m/s, angle in degrees and spin in rad/sec
+    vBall, alpha, omega = initial_launch(club,loft,length,mClub,vSwing,mBall)
+
+    #calulate the ball's flight
+    df_flight = calc_flight(vBall,alpha,omega,r,rho,dt,cd,mBall,g,spin_decay,x)
+    x = df_flight['x'].iloc[-1]
+    dis2green = holeLength - x*m2yd
+    df_flight.x *= m2yd
+    df_flight.y *= m2yd
     plt.close('all')
     
     fig1, ax1 = plt.subplots()
