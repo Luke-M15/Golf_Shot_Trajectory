@@ -24,7 +24,7 @@ def clubSelection(df):
         print('The club you selected is not avalaible.')
         club = input('Please select Driver, 3 Wood, Hybrid, 4-9 Iron, PW, GW, SW, LW or q to quit. ')
         if club == 'q':
-            break
+            return
     
     loft = df['Loft (deg)'].loc[club]
     length = df['Length (in)'].loc[club]
@@ -205,3 +205,4 @@ if __name__ == "__main__":
     with PdfPages(plotFile) as pdf:
         for fig in fig_list:
             pdf.savefig(fig)
+            
