@@ -150,12 +150,12 @@ if __name__ == "__main__":
         df_flight.y *= m2yd
         flight_list.append(df_flight)
         if dis2green < -20:
-            print('Your shot went over the green and into the pond!!!! \n Try Again.')
+            print('\nYour shot went over the green and into the pond!!!! \n Try Again.')
             break    
         elif (dis2green < 0 and dis2green >= -20):
-            print('You made it on the green!!! Nice Job!!!')
+            print('\nYou made it on the green!!! Nice Job!!!')
         else:
-            print('Next shot. \n You are {:.4} yd from the green'.format(dis2green))
+            print('\nNext shot. \nYou are {:.4} yd from the green'.format(dis2green))
     '''            
     # ask user to select a club
     club, loft, length, mClub, vSwing = clubSelection(df_clubs)
